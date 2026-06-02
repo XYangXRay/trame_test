@@ -2,7 +2,7 @@ import os
 
 from trame.app import get_server
 from trame.ui.vuetify import SinglePageWithDrawerLayout
-from trame.widgets import vtk, vuetify, trame
+from trame.widgets import vtk, vuetify
 
 from trame_vtk.modules.vtk.serializers import configure_serializer
 
@@ -177,7 +177,9 @@ renderer.ResetCamera()
 server = get_server(client_type="vue2")
 state, ctrl = server.state, server.controller
 
-state.setdefault("active_ui", None)
+state.setdefault("active_ui", "mesh")
+state.setdefault("mesh_visible", True)
+state.setdefault("contour_visible", True)
 
 # -----------------------------------------------------------------------------
 # Callbacks
@@ -190,26 +192,15 @@ def update_cube_axes_visibility(cube_axes_visibility, **kwargs):
     ctrl.view_update()
 
 
-# Selection Change
-def actives_change(ids):
-    _id = ids[0]
-    if _id == "1":  # Mesh
-        state.active_ui = "mesh"
-    elif _id == "2":  # Contour
-        state.active_ui = "contour"
-    else:
-        state.active_ui = "nothing"
+@state.change("mesh_visible")
+def update_mesh_visibility(mesh_visible, **kwargs):
+    mesh_actor.SetVisibility(bool(mesh_visible))
+    ctrl.view_update()
 
 
-# Visibility Change
-def visibility_change(event):
-    _id = event["id"]
-    _visibility = event["visible"]
-
-    if _id == "1":  # Mesh
-        mesh_actor.SetVisibility(_visibility)
-    elif _id == "2":  # Contour
-        contour_actor.SetVisibility(_visibility)
+@state.change("contour_visible")
+def update_contour_visibility(contour_visible, **kwargs):
+    contour_actor.SetVisibility(bool(contour_visible))
     ctrl.view_update()
 
 
@@ -384,17 +375,36 @@ def standard_buttons():
 
 
 def pipeline_widget():
-    trame.GitTree(
-        sources=(
-            "pipeline",
-            [
-                {"id": "1", "parent": "0", "visible": 1, "name": "Mesh"},
-                {"id": "2", "parent": "1", "visible": 1, "name": "Contour"},
-            ],
-        ),
-        actives_change=(actives_change, "[$event]"),
-        visibility_change=(visibility_change, "[$event]"),
-    )
+    with vuetify.VCard(classes="mb-2"):
+        vuetify.VCardTitle(
+            "Pipeline",
+            classes="grey lighten-1 py-1 grey--text text--darken-3",
+            style="user-select: none; cursor: pointer",
+        )
+        with vuetify.VCardText(classes="py-0"):
+            with vuetify.VList(dense=True, nav=True):
+                with vuetify.VListItemGroup(
+                    v_model=("active_ui", "mesh"), mandatory=True
+                ):
+                    for value, label, state_key in [
+                        ("mesh", "Mesh", "mesh_visible"),
+                        ("contour", "Contour", "contour_visible"),
+                    ]:
+                        with vuetify.VListItem(value=value, dense=True, ripple=False):
+                            with vuetify.VListItemContent():
+                                vuetify.VListItemTitle(label)
+                            with vuetify.VListItemAction() as action:
+                                action.ripple = False
+                                vuetify.VCheckbox(
+                                    v_model=(state_key, True),
+                                    hide_details=True,
+                                    dense=True,
+                                    on_icon="mdi-eye",
+                                    off_icon="mdi-eye-off",
+                                    true_value=True,
+                                    false_value=False,
+                                    classes="ma-0 pa-0",
+                                )
 
 
 def ui_card(title, ui_name):
